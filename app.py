@@ -225,7 +225,7 @@ def show_venue(venue_id):
   # shows the venue page with the given venue_id
   # TODO: replace with real venue data from the venues table, using venue_id
 
-  venue=Venue.query.get(1)
+  venue=Venue.query.get(venue_id)
   venueChild=get_child_data([venue])
   data=clean_sql_to_dict(venueChild[0])
   data['genres']=data['genres'].split(',')
@@ -306,20 +306,30 @@ def search_artists():
  "count":len(artists),
  "data": [{'id':test2['id'],'name':test2['name'],'num_upcoming_shows':test2['upcoming_shows_count'] } for test2 in tests2]
  }
- response={
-    "count": 1,
-    "data": [{
-      "id": 4,
-      "name": "Guns N Petals",
-      "num_upcoming_shows": 0,
-    }]
-  }
+
  return render_template('pages/search_artists.html', results=response2, search_term=request.form.get('search_term', ''))
 
 @app.route('/artists/<int:artist_id>')
 def show_artist(artist_id):
   # shows the venue page with the given venue_id
   # TODO: replace with real venue data from the venues table, using venue_id
+  artist=Artist.query.get(artist_id)
+  artistChild=get_child_data([artist])
+  data=clean_sql_to_dict(artistChild[0])
+  data['genres']=data['genres'].split(',')
+
+  for show in data['past_shows']:
+      showQuery=Venue.query.get(show['venue_id'])
+      show['venue_name']=showQuery.name
+      show['venue_image_link']=showQuery.image_link
+      show['start_time']=show['start_time'].strftime("%m/%d/%Y, %H:%M:%S")
+
+  for show in data['upcoming_shows']:
+      showQuery=Venue.query.get(show['venue_id'])
+      show['venue_name']=showQuery.name
+      show['venue_image_link']=showQuery.image_link
+      show['start_time']=show['start_time'].strftime("%m/%d/%Y, %H:%M:%S")
+
   data1={
     "id": 4,
     "name": "Guns N Petals",
@@ -391,13 +401,14 @@ def show_artist(artist_id):
     "past_shows_count": 0,
     "upcoming_shows_count": 3,
   }
-  data = list(filter(lambda d: d['id'] == artist_id, [data1, data2, data3]))[0]
+  #data = list(filter(lambda d: d['id'] == artist_id, [data1, data2, data3]))[0]
   return render_template('pages/show_artist.html', artist=data)
 
 #  Update
 #  ----------------------------------------------------------------
 @app.route('/artists/<int:artist_id>/edit', methods=['GET'])
 def edit_artist(artist_id):
+
   form = ArtistForm()
   artist={
     "id": 4,
