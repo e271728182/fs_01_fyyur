@@ -26,36 +26,126 @@ db = SQLAlchemy(app)
 #----------------------------------------------------------------------------#
 # Models.
 #----------------------------------------------------------------------------#
+def clean_sql_to_dict(myInput):
+    """
+    removes all keys that have values that are not either sqlAlchemy objects or
+    other undesirables
+    """
+    output={}
+    for k,v in myInput.items():
+
+        if k=='_sa_instance_state' or k=='shows':
+            pass
+        elif type(v)==type(list()):
+            print(k)
+            output[k]=[clean_sql_to_dict(item) for item in v]
+
+        elif type(v)==type(dict()):
+            output[k]=clean_sql_to_dict(v,output)
+        else:
+            output[k]=v
+
+    return output
+
+
+#myvenue=session.query(app.Venue).get(3)
+
+def get_child_data(allParents):
+    """
+    tranforms a SqlAlchemy object into a dictionary
+
+    INPUTS:
+    allParents=list of SqlAlchemy object from a given Query
+    OUPUTS:
+    output: list of dictionaries with parent data and child data
+    """
+    outputData=[]
+    for parent in allParents:
+        parent.shows #get the shows of the parent
+
+        parentDict=parent.__dict__
+        #additional data for segmenting shows children
+        parentDict['past_shows']=[]
+        parentDict['upcoming_shows']=[]
+
+
+        dictShows=[show.__dict__ for show in parent.shows]
+
+        for show in dictShows:
+            if show['start_time']<datetime.now():
+                parentDict['past_shows'].append(show)
+
+            else:
+                parentDict['upcoming_shows'].append(show)
+
+        parentDict['past_shows_count']=len(parentDict['past_shows'])
+        parentDict['upcoming_shows_count']=len(parentDict['upcoming_shows'])
+
+        output={}
+        cleanParentDict=clean_sql_to_dict(parentDict) #remove unwanted fields
+        outputData.append(cleanParentDict)
+    return outputData
+
+def select_fields(listDataObj,keys):
+    listDataObjFiltered=[]
+
+    for dataObj  in listDataObj:
+        dataObj=dataObj.__dict__
+        listDataObjFiltered.append({key:dataObj[key] for key in keys})
+    return listDataObjFiltered
+
+
+
+
 
 class Venue(db.Model):
     __tablename__ = 'Venue'
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
+    name = db.Column(db.String(300))
+    genres=db.Column(db.String(300))
     city = db.Column(db.String(120))
     state = db.Column(db.String(120))
     address = db.Column(db.String(120))
     phone = db.Column(db.String(120))
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
-
+    website = db.Column(db.String(250))
+    seeking_talent = db.Column(db.Boolean,default=False)
+    shows = db.relationship('Show',backref='venue',collection_class=list)
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
-
+    def __repr__(self):
+        return f'<Venue {self.id}>'
 class Artist(db.Model):
     __tablename__ = 'Artist'
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
+    name = db.Column(db.String(300))
     city = db.Column(db.String(120))
     state = db.Column(db.String(120))
     phone = db.Column(db.String(120))
     genres = db.Column(db.String(120))
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
-
+    seeking_description = db.Column(db.String(500))
+    seeking_venue = db.Column(db.Boolean,default=False)
+    shows = db.relationship('Show',backref='artist',collection_class=list)
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
+    def __repr__(self):
+        return f'<Artist {self.id}>'
 
+class Show(db.Model):
+    __tablename__='Show'
+    id = db.Column(db.Integer, primary_key=True)
+    start_time = db.Column(db.DateTime())
+    artist_id = db.Column(db.Integer, db.ForeignKey(
+        'Artist.id'), nullable=False)
+    venue_id = db.Column(db.Integer, db.ForeignKey(
+        'Venue.id'), nullable=False)
+    def __repr__(self):
+        return f'<Show {self.id}>'
 # TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
+db.create_all()
 
 #----------------------------------------------------------------------------#
 # Filters.
@@ -112,101 +202,47 @@ def venues():
 
 @app.route('/venues/search', methods=['POST'])
 def search_venues():
+
   # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
   # seach for Hop should return "The Musical Hop".
   # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
-  response={
-    "count": 1,
-    "data": [{
-      "id": 2,
-      "name": "The Dueling Pianos Bar",
-      "num_upcoming_shows": 0,
-    }]
-  }
-  return render_template('pages/search_venues.html', results=response, search_term=request.form.get('search_term', ''))
+  search_term = request.form.get('search_term', None)
+  venues = Venue.query.filter(
+    Venue.name.ilike("%{}%".format(search_term))).all()
+
+  tests=get_child_data(venues)
+  tests2=[clean_sql_to_dict(test) for test in tests]
+
+
+  response2 = {
+        "count": len(venues),
+        "data": [{'id':test2['id'],'name':test2['name'],'num_upcoming_shows':test2['upcoming_shows_count'] } for test2 in tests2]
+    }
+  return render_template('pages/search_venues.html', results=response2, search_term=request.form.get('search_term', ''))
 
 @app.route('/venues/<int:venue_id>')
 def show_venue(venue_id):
   # shows the venue page with the given venue_id
   # TODO: replace with real venue data from the venues table, using venue_id
-  data1={
-    "id": 1,
-    "name": "The Musical Hop",
-    "genres": ["Jazz", "Reggae", "Swing", "Classical", "Folk"],
-    "address": "1015 Folsom Street",
-    "city": "San Francisco",
-    "state": "CA",
-    "phone": "123-123-1234",
-    "website": "https://www.themusicalhop.com",
-    "facebook_link": "https://www.facebook.com/TheMusicalHop",
-    "seeking_talent": True,
-    "seeking_description": "We are on the lookout for a local artist to play every two weeks. Please call us.",
-    "image_link": "https://images.unsplash.com/photo-1543900694-133f37abaaa5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=400&q=60",
-    "past_shows": [{
-      "artist_id": 4,
-      "artist_name": "Guns N Petals",
-      "artist_image_link": "https://images.unsplash.com/photo-1549213783-8284d0336c4f?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=300&q=80",
-      "start_time": "2019-05-21T21:30:00.000Z"
-    }],
-    "upcoming_shows": [],
-    "past_shows_count": 1,
-    "upcoming_shows_count": 0,
-  }
-  data2={
-    "id": 2,
-    "name": "The Dueling Pianos Bar",
-    "genres": ["Classical", "R&B", "Hip-Hop"],
-    "address": "335 Delancey Street",
-    "city": "New York",
-    "state": "NY",
-    "phone": "914-003-1132",
-    "website": "https://www.theduelingpianos.com",
-    "facebook_link": "https://www.facebook.com/theduelingpianos",
-    "seeking_talent": False,
-    "image_link": "https://images.unsplash.com/photo-1497032205916-ac775f0649ae?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=750&q=80",
-    "past_shows": [],
-    "upcoming_shows": [],
-    "past_shows_count": 0,
-    "upcoming_shows_count": 0,
-  }
-  data3={
-    "id": 3,
-    "name": "Park Square Live Music & Coffee",
-    "genres": ["Rock n Roll", "Jazz", "Classical", "Folk"],
-    "address": "34 Whiskey Moore Ave",
-    "city": "San Francisco",
-    "state": "CA",
-    "phone": "415-000-1234",
-    "website": "https://www.parksquarelivemusicandcoffee.com",
-    "facebook_link": "https://www.facebook.com/ParkSquareLiveMusicAndCoffee",
-    "seeking_talent": False,
-    "image_link": "https://images.unsplash.com/photo-1485686531765-ba63b07845a7?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=747&q=80",
-    "past_shows": [{
-      "artist_id": 5,
-      "artist_name": "Matt Quevedo",
-      "artist_image_link": "https://images.unsplash.com/photo-1495223153807-b916f75de8c5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=334&q=80",
-      "start_time": "2019-06-15T23:00:00.000Z"
-    }],
-    "upcoming_shows": [{
-      "artist_id": 6,
-      "artist_name": "The Wild Sax Band",
-      "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-      "start_time": "2035-04-01T20:00:00.000Z"
-    }, {
-      "artist_id": 6,
-      "artist_name": "The Wild Sax Band",
-      "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-      "start_time": "2035-04-08T20:00:00.000Z"
-    }, {
-      "artist_id": 6,
-      "artist_name": "The Wild Sax Band",
-      "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-      "start_time": "2035-04-15T20:00:00.000Z"
-    }],
-    "past_shows_count": 1,
-    "upcoming_shows_count": 1,
-  }
-  data = list(filter(lambda d: d['id'] == venue_id, [data1, data2, data3]))[0]
+
+  venue=Venue.query.get(1)
+  venueChild=get_child_data([venue])
+  data=clean_sql_to_dict(venueChild[0])
+  data['genres']=data['genres'].split(',')
+
+  for show in data['past_shows']:
+      showQuery=Artist.query.get(show['artist_id'])
+      show['artist_name']=showQuery.name
+      show['artist_image_link']=showQuery.image_link
+      show['start_time']=show['start_time'].strftime("%m/%d/%Y, %H:%M:%S")
+
+  for show in data['upcoming_shows']:
+      showQuery=Artist.query.get(show['artist_id'])
+      show['artist_name']=showQuery.name
+      show['artist_image_link']=showQuery.image_link
+      show['start_time']=show['start_time'].strftime("%m/%d/%Y, %H:%M:%S")
+
+  #data = list(filter(lambda d: d['id'] == venue_id, [data1, data2, data3]))[0]
   return render_template('pages/show_venue.html', venue=data)
 
 #  Create Venue
@@ -260,7 +296,17 @@ def search_artists():
   # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
   # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
   # search for "band" should return "The Wild Sax Band".
-  response={
+ search_term = request.form.get('search_term', None)
+ artists = Artist.query.filter(
+    Artist.name.ilike("%{}%".format(search_term))).all()
+
+ tests=get_child_data(artists)
+ tests2=[clean_sql_to_dict(test) for test in tests]
+ response2={
+ "count":len(artists),
+ "data": [{'id':test2['id'],'name':test2['name'],'num_upcoming_shows':test2['upcoming_shows_count'] } for test2 in tests2]
+ }
+ response={
     "count": 1,
     "data": [{
       "id": 4,
@@ -268,7 +314,7 @@ def search_artists():
       "num_upcoming_shows": 0,
     }]
   }
-  return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
+ return render_template('pages/search_artists.html', results=response2, search_term=request.form.get('search_term', ''))
 
 @app.route('/artists/<int:artist_id>')
 def show_artist(artist_id):
