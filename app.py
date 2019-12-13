@@ -315,9 +315,7 @@ def artists():
 
 @app.route('/artists/search', methods=['POST'])
 def search_artists():
-  # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
-  # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
-  # search for "band" should return "The Wild Sax Band".
+
  search_term = request.form.get('search_term', None)
  artists = Artist.query.filter(
     Artist.name.ilike("%{}%".format(search_term))).all()
@@ -420,15 +418,27 @@ def create_artist_form():
 
 @app.route('/artists/create', methods=['POST'])
 def create_artist_submission():
-  # called upon submitting the new artist listing form
-  # TODO: insert form data as a new Venue record in the db, instead
-  # TODO: modify data to be the data object returned from db insertion
+    artist_form = ArtistForm(request.form)
+    try:
+        new_artist = Artist(
+            name=artist_form.name.data,
+            genres=','.join(artist_form.genres.data),
+            city=artist_form.city.data,
+            state=artist_form.state.data,
+            phone=artist_form.phone.data,
+            facebook_link=artist_form.facebook_link.data)
 
-  # on successful db insert, flash success
-  flash('Artist ' + request.form['name'] + ' was successfully listed!')
-  # TODO: on unsuccessful db insert, flash an error instead.
-  # e.g., flash('An error occurred. Artist ' + data.name + ' could not be listed.')
-  return render_template('pages/home.html')
+
+        db.session.add(new_artist)
+        db.session.rollback()
+
+        # on successful db insert, flash success
+        flash('Artist ' + artist_form.name.data + ' was successfully listed!')
+    except Exception as ex:
+        flash('An error occurred. Artist ' +
+              artist_form.name.data + ' could not be listed.')
+
+    return render_template('pages/home.html')
 
 
 #  Shows
