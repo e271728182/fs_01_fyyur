@@ -13,6 +13,7 @@ from logging import Formatter, FileHandler
 from flask_wtf import Form
 from forms import *
 from models import *
+from flask_migrate import Migrate, MigrateCommand
 #----------------------------------------------------------------------------#
 # App Config.
 #----------------------------------------------------------------------------#
@@ -21,7 +22,7 @@ app = Flask(__name__)
 moment = Moment(app)
 app.config.from_object('config')
 db = SQLAlchemy(app)
-
+migrate=Migrate(app,db)
 # TODO: connect to a local postgresql database
 
 #----------------------------------------------------------------------------#
@@ -266,7 +267,23 @@ def edit_artist(artist_id):
 def edit_artist_submission(artist_id):
   # TODO: take values from the form submitted, and update existing
   # artist record with ID <artist_id> using the new attributes
-
+    artist_form = ArtistForm(request.form)
+    try:
+        artist = Artist.query.filter_by(id=artist_id).one()
+        artist.name = artist_form.name.data,
+        artist.genres = json.dumps(form.genres.data),  # array json
+        artist.city = artist_form.city.data,
+        artist.state = artist_form.state.data,
+        artist.phone = artist_form.phone.data,
+        artist.facebook_link = artist_form.facebook_link.data,
+        artist.image_link = artist_form.image_link.data,
+        db.session.update(artist)
+        # on successful db insert, flash success
+        flash('Artist ' + form.name.data + ' was successfully updated!')
+    except Exception as e:
+        flash('An error occurred. Artist ' +
+              request.form['name'] + ' could not be updated.')
+  return redirect(url_for('show_artist', artist_id=artist_id))
   return redirect(url_for('show_artist', artist_id=artist_id))
 
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
