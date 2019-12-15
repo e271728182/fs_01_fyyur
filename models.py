@@ -17,12 +17,22 @@ moment = Moment(app)
 app.config.from_object('config')
 db = SQLAlchemy(app)
 
+def format_datetime(value, format='medium'):
+  date = dateutil.parser.parse(value)
+  if format == 'full':
+      format="EEEE MMMM, d, y 'at' h:mma"
+  elif format == 'medium':
+      format="EE MM, dd, y h:mma"
+  return babel.dates.format_datetime(date, format)
 
-
+app.jinja_env.filters['datetime'] = format_datetime
 def clean_sql_to_dict(myInput):
     """
     removes all keys that have values that are not either sqlAlchemy objects or
     other undesirables
+
+    INPUT:
+    myInput: mySQL query object in a dict form ex: myQuery.__dict__
     """
     output={}
     for k,v in myInput.items():

@@ -245,21 +245,11 @@ def show_artist(artist_id):
 #  ----------------------------------------------------------------
 @app.route('/artists/<int:artist_id>/edit', methods=['GET'])
 def edit_artist(artist_id):
+  artist_query=Artist.query.get(artist_id)
+  #tranform the query to a dict, clean undesirables and use it
+  #as input for the ArtistForm function
+  form = ArtistForm(clean_sql_to_dict(artist_query.__dict__))
 
-  form = ArtistForm()
-  artist={
-    "id": 4,
-    "name": "Guns N Petals",
-    "genres": ["Rock n Roll"],
-    "city": "San Francisco",
-    "state": "CA",
-    "phone": "326-123-5000",
-    "website": "https://www.gunsnpetalsband.com",
-    "facebook_link": "https://www.facebook.com/GunsNPetals",
-    "seeking_venue": True,
-    "seeking_description": "Looking for shows to perform at in the San Francisco Bay Area!",
-    "image_link": "https://images.unsplash.com/photo-1549213783-8284d0336c4f?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=300&q=80"
-  }
   # TODO: populate form with fields from artist with ID <artist_id>
   return render_template('forms/edit_artist.html', form=form, artist=artist)
 
@@ -282,13 +272,16 @@ def edit_artist_submission(artist_id):
         flash('Artist ' + form.name.data + ' was successfully updated!')
     except Exception as e:
         flash('An error occurred. Artist ' +
-              request.form['name'] + ' could not be updated.')
-  return redirect(url_for('show_artist', artist_id=artist_id))
-  return redirect(url_for('show_artist', artist_id=artist_id))
+              request.form.name + ' could not be updated.')
+    return redirect(url_for('show_artist', artist_id=artist_id))
 
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
 def edit_venue(venue_id):
-  form = VenueForm()
+
+  venue_query=Venue.query.get(artist_id)
+    #tranform the query to a dict, clean undesirables and use it
+    #as input for the ArtistForm function
+  form = VenueForm(clean_sql_to_dict(venue_query.__dict__))
   venue={
     "id": 1,
     "name": "The Musical Hop",
@@ -310,7 +303,24 @@ def edit_venue(venue_id):
 def edit_venue_submission(venue_id):
   # TODO: take values from the form submitted, and update existing
   # venue record with ID <venue_id> using the new attributes
-  return redirect(url_for('show_venue', venue_id=venue_id))
+      venue_form = VenueForm(request.form)
+      try:
+          venue = Venue.query.filter_by(id=venue_id).one()
+          venue.name = venue_form.name.data,
+          venue.genres = json.dumps(form.genres.data),  # array json
+          venue.city = venue_form.city.data,
+          venue.state = venue_form.state.data,
+          venue.phone = venue_form.phone.data,
+          venue.facebook_link = venue_form.facebook_link.data,
+          venue.image_link = venue_form.image_link.data,
+          db.session.update(venue)
+          # on successful db insert, flash success
+          flash('Venue ' + form.name.data + ' was successfully updated!')
+      except Exception as e:
+          flash('An error occurred. Venue ' +
+                request.form.name + ' could not be updated.')
+      return redirect(url_for('show_venue', venue_id=venue_id))
+
 
 #  Create Artist
 #  ----------------------------------------------------------------
